@@ -481,6 +481,158 @@
 
 请记住，`playWhenReady` 表示所需的播放状态。只有当 `playWhenReady` 为 `true` 且播放器状态为 `Player.STATE_READY` 时，播放器才会实际播放。`play()` 和 `pause()` 方法是管理 `playWhenReady` 标志的便捷方式。
 
+## (可选) 自定义播放器用户界面 (UI)
+
+虽然 `androidx.media3.ui.PlayerView` 提供的默认播放器控件功能齐全，但在某些情况下，您可能希望对其进行自定义，以使其与您的应用整体外观和感觉更匹配，或者更改其提供的功能。Media3 提供了多种方式来自定义 `PlayerView` 的用户界面。
+
+### 通过XML属性定制 (简单方式)
+
+这是最简单的定制方式，适用于简单的显隐控制或行为调整。`PlayerView` 及其内部使用的 `StyledPlayerControlView` 提供了许多XML属性，可以直接在布局文件中设置，以控制UI元素的可见性或行为。
+
+以下是一些常用的 `PlayerView` XML属性：
+
+*   `app:use_controller="false"`: 完全隐藏默认控制器。如果设置为 `false`，您将需要自己实现所有播放控制逻辑。
+*   `app:show_shuffle_button="false"`: 隐藏随机播放按钮。
+*   `app:show_subtitle_button="true"`: 显示字幕按钮（如果默认未显示）。
+*   `app:show_rewind_button="false"`: 隐藏快退按钮。您可以通过 `app:rewind_increment_ms` 控制快退的时长。
+*   `app:show_fastforward_button="false"`: 隐藏快进按钮。您可以通过 `app:fastforward_increment_ms` 控制快进的时长。
+*   `app:show_previous_button="true"`: 显示上一首按钮（如果播放列表包含多个媒体项）。
+*   `app:show_next_button="true"`: 显示下一首按钮（如果播放列表包含多个媒体项）。
+*   `app:controller_show_timeout_ms="5000"`: 设置控制器显示5秒后自动隐藏。如果设置为0，则控制器将始终可见。
+*   `app:hide_on_touch="true"`: 设置为 `true` 时，在用户触摸视频区域时，如果控制器是可见的，则会隐藏控制器。
+
+**XML代码片段示例：**
+
+```xml
+<androidx.media3.ui.PlayerView
+    android:id="@+id/player_view"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    app:use_controller="true"
+    app:show_fastforward_button="false"
+    app:show_rewind_button="false"
+    app:show_shuffle_button="false"
+    app:controller_show_timeout_ms="3000" />
+```
+
+### 通过自定义布局定制 (高级方式)
+
+这种方式提供了最大的灵活性，允许您完全重新设计控制器的外观和感觉，甚至添加自定义功能。您可以通过 `PlayerView` 的 `app:controller_layout_id="@layout/your_custom_layout"` 属性指定自己的控制器布局XML文件。
+
+**如何创建自定义布局:**
+
+1.  **参考默认布局**:
+    一个好的起点是复制 Media3 库中提供的默认控制器布局文件，并在此基础上进行修改。`PlayerView` 内部通常使用 `StyledPlayerControlView`，其默认布局文件名通常是 `media3_styled_player_control_view.xml`。您可以从 Media3 库的源代码中找到这个文件，或者查阅官方文档。如果直接引用或查找有困难，也可以从一个基本的XML结构开始创建。
+
+2.  **重要的视图ID**:
+    如果希望 Media3 自动处理按钮的点击事件（如播放、暂停、快进、快退等），那么自定义布局中对应的按钮（或其他视图）的ID必须与库所期望的ID一致。Media3 中 `StyledPlayerControlView` 使用的ID通常带有 `media3_` 前缀（也可能兼容旧的 `exo_` 前缀的ID，但建议优先使用 Media3 的标准ID）。
+
+    以下是一些关键视图及其在 Media3 中期望的ID（具体ID请以您使用的 Media3 版本中的 `media3_styled_player_control_view.xml` 为准）：
+    *   播放按钮: `@id/media3_play` (或 `@id/exo_play`)
+    *   暂停按钮: `@id/media3_pause` (或 `@id/exo_pause`)
+    *   快进按钮: `@id/media3_ffwd` (或 `@id/exo_ffwd`)
+    *   快退按钮: `@id/media3_rew` (或 `@id/exo_rew`)
+    *   上一首按钮: `@id/media3_prev` (或 `@id/exo_prev`)
+    *   下一首按钮: `@id/media3_next` (或 `@id/exo_next`)
+    *   重复模式按钮: `@id/media3_repeat_toggle` (或 `@id/exo_repeat_toggle`)
+    *   随机播放按钮: `@id/media3_shuffle` (或 `@id/exo_shuffle`)
+    *   字幕按钮: `@id/media3_subtitles` (或 `@id/exo_subtitles`)
+    *   画中画按钮: `@id/media3_picture_in_picture`
+    *   全屏按钮: `@id/media3_fullscreen`
+    *   时间条/进度条: `@id/media3_progress` (或 `@id/exo_progress`)
+    *   当前播放时间: `@id/media3_position` (或 `@id/exo_position`)
+    *   媒体总时长: `@id/media3_duration` (或 `@id/exo_duration`)
+
+    如果您在自定义布局中使用了不同的ID，或者添加了自定义功能的按钮，那么您需要自己获取这些视图的引用，并手动设置点击监听器以及调用 `Player` API 来实现相应功能。
+
+**简单的自定义布局XML示例 (`custom_player_controls.xml`):**
+
+此示例仅包含播放/暂停按钮、当前时间、总时长和时间条，移除了其他所有按钮。
+
+```xml
+<!-- res/layout/custom_player_controls.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="#80000000"
+    android:padding="8dp">
+
+    <!-- 播放按钮 -->
+    <ImageButton android:id="@id/media3_play" 
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/media3_notification_play" /> <!-- 建议使用您自己应用主题中的图标或Media3提供的图标 -->
+
+    <!-- 暂停按钮 -->
+    <ImageButton android:id="@id/media3_pause"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/media3_notification_pause" /> <!-- 建议使用您自己应用主题中的图标或Media3提供的图标 -->
+
+    <!-- 当前播放时间 -->
+    <TextView android:id="@id/media3_position"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:layout_marginStart="8dp"/>
+
+    <!-- 进度条 -->
+    <androidx.media3.ui.DefaultTimeBar
+        android:id="@id/media3_progress"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        app:played_color="#FF0000"       пример красного цвета
+        app:scrubber_color="#FF0000"     пример красного цвета
+        app:buffered_color="#80FFFFFF"
+        app:unplayed_color="#40FFFFFF"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"/>
+
+    <!-- 总时长 -->
+    <TextView android:id="@id/media3_duration"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"/>
+
+</LinearLayout>
+```
+*(请注意：上述示例中的 `@drawable/media3_notification_play` 和 `@drawable/media3_notification_pause` 是 Media3 库中可能存在的图标资源。您可能需要根据实际可用的资源或您自己的图标进行调整。颜色值也仅为示例。)*
+
+**在 `PlayerView` 中使用自定义布局:**
+
+```xml
+<androidx.media3.ui.PlayerView
+    android:id="@+id/player_view"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    app:controller_layout_id="@layout/custom_player_controls"
+    app:use_controller="true" /> 
+    <!-- 确保 use_controller 仍为 true (或省略，默认为 true) 以使用控制器 -->
+```
+
+### 注意事项
+
+*   **手动处理逻辑**: 如果您完全替换了控制器布局并且使用了自定义ID（或添加了自定义按钮），您将需要自己处理更多的逻辑。这包括但不限于：
+    *   根据播放状态更新播放/暂停按钮的图标和可见性。
+    *   格式化并更新当前播放时间和总时长 `TextView`。
+    *   处理时间条的拖动事件，并调用 `player.seekTo()`。
+    *   实现自定义按钮的功能。
+    这通常涉及到在您的 Activity 或 Fragment 中实现 `Player.Listener`，并在回调方法中与您的自定义视图进行交互。
+
+*   **`StyledPlayerControlView`**: Media3 中的 `StyledPlayerControlView` 是 `PlayerView` 内部用于显示控件的视图。它本身就提供了很多通过XML属性或程序化方法进行定制的选项。如果您只需要调整现有控件的样式或行为，可能不需要完全替换布局，而是可以通过 `StyledPlayerControlView` 的API进行配置。
+
+*   **官方文档**: 对于更复杂的UI定制或添加自定义功能，强烈建议查阅最新的 Media3 官方文档以及 `PlayerView` 和 `StyledPlayerControlView` (或Media3中等效的控制器视图) 的源代码。这些资源将提供最准确和最详细的指导。
+
+通过这些方法，您可以有效地自定义 Media3 播放器的用户界面，以满足您应用的需求。
+
 ## (可选) 启用视频缓存
 
 启用视频缓存可以显著改善用户体验，尤其是在网络连接不稳定或用户希望重复观看相同内容的情况下。缓存的好处包括：
